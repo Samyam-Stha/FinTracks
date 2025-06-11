@@ -1,0 +1,29 @@
+/* Base light styles */
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background-color: #f5f5f5;
+  color: #222;
+}
+
+.dark {
+  background-color: #121212;
+  color: #f5f5f5;
+}
+
+/* Button styling */
+.dark-toggle-btn {
+  padding: 8px 12px;
+  font-size: 14px;
+  border: none;
+  background-color: #eee;
+  color: #222;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.dark .dark-toggle-btn {
+  background-color: #333;
+  color: #f5f5f5;
+}
