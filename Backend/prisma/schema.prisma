@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             Int              @id @default(autoincrement())
+  name           String
+  email          String           @unique
+  password       String
+  createdAt      DateTime         @default(now())
+  budgets        Budget[]
+  categories     Category[]
+  transactions   Transaction[]
+  monthlySavings MonthlySavings[]
+  monthlyBudgetHistory MonthlyBudgetHistory[]
+  savingsGoals   SavingsGoal[]
+}
+
+model Category {
+  id      Int      @id @default(autoincrement())
+  name    String
+  account String
+  createdAt DateTime @default(now())
+  user    User     @relation(fields: [userId], references: [id])
+  userId  Int
+  budgets Budget[]
+
+  @@unique([userId, name, account])
+}
+
+model Budget {
+  id         Int      @id @default(autoincrement())
+  budget     Float
+  spent      Float    @default(0)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId Int
+
+  @@unique([userId, categoryId])
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  description String
+  amount      Float
+  type        String
+  category    String
+  account     String
+  user        User     @relation(fields: [userId], references: [id])
+  userId      Int
+}
+
+enum SavingsStatus {
+  achieved
+  in_progress
+  not_achieved
+  pending
+}
+
+model MonthlySavings {
+  id        Int           @id @default(autoincrement())
+  month     DateTime
+  savedAmount    Float
+  savingGoal      Float
+  status    SavingsStatus
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+
+  @@unique([userId, month])
+}
+
+model MonthlyBudgetHistory {
+  id         Int      @id @default(autoincrement())
+  month      DateTime
+  category   String
+  budget     Float
+  spent      Float
+  remaining  Float
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     Int
+
+  @@unique([userId, month, category])
+}
+
+model SavingsGoal {
+  id              Int      @id @default(autoincrement())
+  initialGoal     Float
+  currentGoal     Float
+  month           DateTime
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id])
+  userId          Int
+
+  @@unique([userId, month])
+}
+
+model PendingUser {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  code      String
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetRequest {
+  id        Int      @id @default(autoincrement())
+  email     String
+  code      String
+  createdAt DateTime @default(now())
+}

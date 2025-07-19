@@ -1,0 +1,36 @@
+@startuml FinTrack_System_Diagram
+
+!theme plain
+title FinTrack - System Architecture
+
+skinparam rectangle {
+    shadowing false
+}
+
+actor User
+
+rectangle "Frontend UI" as UI
+rectangle "Backend API" as API
+rectangle "Analytics Engine" as Analytics
+database "Database" as DB
+
+rectangle "Transactions"
+rectangle "Budgets"
+rectangle "Reports"
+rectangle "User Profile"
+
+User -- UI : "interacts"
+UI -- API : "requests data"
+
+API -- "User Profile" : "manages"
+API -- Transactions : "manages"
+API -- Budgets : "manages"
+
+API -- Analytics : "uses"
+
+API -- DB : "stores/retrieves"
+
+Analytics -- Reports : "generates"
+Analytics -- DB : "reads data for analysis"
+
+@enduml 

@@ -1,6 +1,6 @@
 "use client";
-
-import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Receipt,
@@ -11,6 +11,9 @@ import {
   LogOut,
   Menu,
   X,
+  Moon,
+  Sun,
+  Activity,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +24,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { getCurrentUser } from "@/utils/useAuth";
 
 export function Sidebar({ currentPage, setCurrentPage }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -29,8 +33,9 @@ export function Sidebar({ currentPage, setCurrentPage }) {
     { href: "dashboard", icon: LayoutDashboard, title: "Dashboard" },
     { href: "transactions", icon: Receipt, title: "Transactions" },
     { href: "budget", icon: PieChart, title: "Budget" },
-    { href: "reports", icon: BarChart3, title: "Reports" },
-    { href: "accounts", icon: CreditCard, title: "Accounts" },
+    { href: "savings", icon: CreditCard, title: "Savings" },
+    // { href: "reports", icon: BarChart3, title: "Reports" },
+    { href: "analytics", icon: Activity, title: "Analytics" },
     { href: "settings", icon: Settings, title: "Settings" },
   ];
 
@@ -39,6 +44,22 @@ export function Sidebar({ currentPage, setCurrentPage }) {
     window.location.href = "/";
   };
 
+   const [darkMode, setDarkMode] = useState(() => {
+    // Load from localStorage or default to false
+    return localStorage.getItem("darkMode") === "true";
+  });
+  const user = getCurrentUser();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const html = document.documentElement;
+    if (darkMode) {
+      html.classList.add("dark");
+    } else {
+      html.classList.remove("dark");
+    }
+    localStorage.setItem("darkMode", darkMode);
+  }, [darkMode]);
   return (
     <>
       {/* Mobile Toggle Button */}
@@ -103,6 +124,28 @@ export function Sidebar({ currentPage, setCurrentPage }) {
             </TooltipProvider>
           </div>
 
+          {/* Dark Mode Toggle */}
+          <div className="px-4 py-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDarkMode((d) => !d)}
+              className="w-full justify-start text-sm font-medium cursor-pointer transition-colors text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              {darkMode ? (
+                <>
+                  <Moon className="h-5 w-5 mr-2" />
+                  Dark Mode
+                </>
+              ) : (
+                <>
+                  <Sun className="h-5 w-5 mr-2" />
+                  Light Mode
+                </>
+              )}
+            </Button>
+          </div>
+
           {/* Logout */}
           <div className="p-4 mt-auto border-t dark:border-gray-800">
             <TooltipProvider delayDuration={0}>
@@ -122,6 +165,14 @@ export function Sidebar({ currentPage, setCurrentPage }) {
           </div>
         </div>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
     </>
   );
 }

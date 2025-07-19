@@ -7,7 +7,8 @@ router.get("/", authenticate, budgetController.getBudgets);
 router.post("/", authenticate, budgetController.addBudget);
 router.put("/:id", authenticate, budgetController.updateBudget);
 router.delete("/:id", authenticate, budgetController.deleteBudget);
-router.get("/auto-suggest", authenticate, budgetController.autoGenerateBudgets);
 router.get("/forecast", authenticate, budgetController.getForecast);
+router.get("/history", authenticate, budgetController.getBudgetHistory);
+router.post("/reset", authenticate, budgetController.manualReset);
 
 module.exports = router;

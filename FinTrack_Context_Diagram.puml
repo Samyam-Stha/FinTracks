@@ -1,0 +1,12 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+actor "User" as user
+circle "FinTrack System" as system
+
+user --> system : Income, Expense, Budget, Savings Goal
+system --> user : Dashboard, Alerts, Financial Status, Analytics
+
+@enduml 

@@ -1,0 +1,210 @@
+@startuml FinTrack_Class_Diagram
+
+title FinTrack - Class Diagram
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' Backend Models and Controllers
+package "Backend" {
+
+    package "Models" {
+        class User {
+            +id: Int
+            +name: String
+            +email: String
+            -password: String
+        }
+
+        class Category {
+            +id: Int
+            +name: String
+            +account: String
+        }
+
+        class Budget {
+            +id: Int
+            +budget: Float
+        }
+
+        class Transaction {
+            +id: Int
+            +date: DateTime
+            +description: String
+            +amount: Float
+            +type: String
+            +category: String
+            +account: String
+        }
+
+        class MonthlySavings {
+            +id: Int
+            +month: DateTime
+            +amount: Float
+        }
+
+        class MonthlyBudgetHistory {
+            +id: Int
+            +month: DateTime
+            +category: String
+            +budget: Float
+            +spent: Float
+            +remaining: Float
+        }
+    }
+
+    package "Controllers" {
+        class AuthController {
+            +register(name, email, password)
+            +login(email, password)
+            +updateUser(field, value, currentPassword)
+            +deleteAccount(password)
+        }
+
+        class CategoryController {
+            +getCategories(account)
+            +addCategory(name, account)
+        }
+
+        class BudgetController {
+            +getBudgets(month)
+            +addBudget(categoryName, budget)
+            +updateBudget(id, budget)
+            +deleteBudget(id)
+        }
+
+        class TransactionController {
+            +addTransaction(...)
+            +getRecentTransactions()
+            +getFilteredTransactions(...)
+            +getCategoryExpenses(interval)
+            +updateTransaction(id, ...)
+            +deleteTransaction(id)
+            +getSummaryByInterval(interval)
+        }
+        
+        class SavingsController {
+            +storeMonthlySavings(month, amount)
+            +getMonthlySavings(year)
+        }
+
+        class AnalyticsController {
+            +getSpendingTrends(period)
+            +getBudgetVsActual(...)
+            +getSeasonalAnalysis(years)
+            +getCategoryAlerts()
+            +getFinancialHealthScore()
+        }
+    }
+}
+
+
+' Frontend Components
+package "Frontend" {
+    package "Pages" {
+        class Dashboard {
+            +showModal: Boolean
+            +transactions: Transaction[]
+            +income: Number
+            +expense: Number
+            +balance: Number
+            +savingRate: Number
+            --
+            +capitalizeFirst(str)
+            +updateDashboardStats(txs)
+            +fetchTransactions()
+            +getSavingRateColor(rate)
+            +setShowModal(value)
+        }
+
+        class TransactionPage {
+            +showModal: Boolean
+            +refreshKey: Number
+            +filters: Object
+        }
+
+        class BudgetPage {
+            +budgets: Budget[]
+            +categories: String[]
+            +form: Object
+            +forecast: Array
+        }
+
+        class AnalyticsPage {
+            +activeTab: String
+            +interval: String
+            +loading: Boolean
+            +trendsData: Object
+            +budgetData: Object
+        }
+
+        class SavingPage {
+            +monthlySavings: Array
+            +totalSavings: Number
+            +savingGoal: Number
+            +currentBalance: Number
+        }
+
+        class SettingsPage {
+            +form: Object
+            +showDeleteModal: Boolean
+        }
+    }
+
+    package "Components" {
+        class AuthForm {
+            +isSignUp: Boolean
+        }
+        class AddTransactionModal {
+            +form: Object
+            +categories: String[]
+            +newCategory: String
+        }
+        class TransactionsTable {
+            +transactions: Transaction[]
+            +editingTransaction: Transaction
+            +loading: Boolean
+            +page: Number
+        }
+    }
+}
+
+
+' Relationships
+User "1" -- "0..*" Budget
+User "1" -- "0..*" Category
+User "1" -- "0..*" Transaction
+User "1" -- "0..*" MonthlySavings
+User "1" -- "0..*" MonthlyBudgetHistory
+
+Category "1" -- "0..*" Budget
+
+AuthController ..> User
+CategoryController ..> Category
+BudgetController ..> Budget
+BudgetController ..> Category
+BudgetController ..> Transaction
+BudgetController ..> MonthlySavings
+BudgetController ..> MonthlyBudgetHistory
+TransactionController ..> Transaction
+SavingsController ..> MonthlySavings
+
+AnalyticsController ..> Transaction
+AnalyticsController ..> Budget
+AnalyticsController ..> MonthlyBudgetHistory
+
+Dashboard ..> TransactionController : uses
+Dashboard ..> AddTransactionModal : uses
+Dashboard ..> Overview : uses
+Dashboard ..> BudgetProgress : uses
+Dashboard ..> RecentTransactions : uses
+Dashboard ..> ExpensePieChart : uses
+
+TransactionPage ..> TransactionController
+BudgetPage ..> BudgetController
+AnalyticsPage ..> AnalyticsController
+SavingPage ..> SavingsController
+SettingsPage ..> AuthController
+
+
+@enduml 

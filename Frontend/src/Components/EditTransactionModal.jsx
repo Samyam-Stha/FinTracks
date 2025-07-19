@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import api from "@/api/axios";
+import axios from "axios";
 import { format, parseISO } from "date-fns";
 
 export default function EditTransactionModal({ transaction, onClose }) {
@@ -7,6 +8,8 @@ export default function EditTransactionModal({ transaction, onClose }) {
     ...transaction,
     date: format(parseISO(transaction.date), "yyyy-MM-dd'T'HH:mm")
   });
+
+  const [categories, setCategories] = useState([]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -44,6 +47,27 @@ export default function EditTransactionModal({ transaction, onClose }) {
     "Utilities",
     "Groceries",
   ];
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const token = localStorage.getItem("token");
+      try {
+        const res = await axios.get(
+          `http://localhost:5000/api/categories?account=${form.account}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        const userCategories = res.data || [];
+        const merged = [...new Set([...predefinedCategories, ...userCategories])];
+        setCategories(merged);
+      } catch (err) {
+        setCategories(predefinedCategories);
+      }
+    };
+    fetchCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.account]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -111,7 +135,7 @@ export default function EditTransactionModal({ transaction, onClose }) {
             <option value="" disabled>
               Select a category
             </option>
-            {predefinedCategories.map((cat, index) => (
+            {categories.map((cat, index) => (
               <option key={index} value={cat}>
                 {cat}
               </option>

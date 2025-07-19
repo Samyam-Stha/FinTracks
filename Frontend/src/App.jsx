@@ -5,27 +5,19 @@ import { getCurrentUser } from "./utils/useAuth";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import TransactionsPage from "./pages/TransactionPage";
 import BudgetPage from "./pages/BudgetPage";
-import ReportPage from "./pages/ReportPage";
+// import ReportPage from "./pages/ReportPage";
 import SettingsPage from "./pages/SettingsPage";
+import SavingPage from "./pages/SavingPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState("dashboard");
-  const [darkMode, setDarkMode] = useState(() => {
-    // Load from localStorage or default to false
-    return localStorage.getItem("darkMode") === "true";
-  });
-  const user = getCurrentUser();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const html = document.documentElement;
-    if (darkMode) {
-      html.classList.add("dark");
-    } else {
-      html.classList.remove("dark");
-    }
-    localStorage.setItem("darkMode", darkMode);
-  }, [darkMode]);
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/");
+  };
 
   const renderPage = () => {
     switch (currentPage) {
@@ -35,15 +27,12 @@ export default function App() {
         return <TransactionsPage />;
       case "budget":
         return <BudgetPage />;
-      case "reports":
-        return <ReportPage />;
-      case "accounts":
-        return (
-          <div>
-            <h2 className="text-xl font-semibold mb-2">🏦 Accounts</h2>
-            <p>Track your connected accounts.</p>
-          </div>
-        );
+      case "savings":
+        return <SavingPage />;
+      // case "reports":
+      //   return <ReportPage />;
+      case "analytics":
+        return <AnalyticsPage setCurrentPage={setCurrentPage} />;
       case "settings":
         return <SettingsPage />;
       default:
@@ -64,6 +53,9 @@ export default function App() {
       </div>
       {/* Main content takes remaining width */}
       <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+        <div className="flex justify-end mb-4">
+         
+        </div>
         {renderPage()}
       </div>
     </div>

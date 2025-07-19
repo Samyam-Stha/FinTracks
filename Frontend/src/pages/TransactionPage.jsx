@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { TransactionFilters } from "@/Components/TransactionFilter";
 import { TransactionsTable } from "@/Components/TransactionsTable";
-import AddTransactionModal from "@/Components/AddTransactionModal";
+import AddTransactionModal from "@/Components/Dashboard/AddTransactionModal";
 
 export default function TransactionsPage() {
   const [showModal, setShowModal] = useState(false);
@@ -14,8 +14,18 @@ export default function TransactionsPage() {
     setRefreshKey((prev) => prev + 1); // trigger refresh
   };
 
+  useEffect(() => {
+    window.history.pushState(null, "", window.location.href);
+    window.onpopstate = function () {
+      window.history.go(1);
+    };
+    return () => {
+      window.onpopstate = null;
+    };
+  }, []);
+
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-8">
+    <div className="flex flex-col gap-4 p-4 md:p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
         <Button

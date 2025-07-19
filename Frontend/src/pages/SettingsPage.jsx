@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import api from "@/api/axios";
 import { toast } from "react-toastify";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -13,9 +13,7 @@ export default function SettingsPage() {
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem("darkMode") === "true";
-  });
+ 
 
   const token = localStorage.getItem("token");
 
@@ -43,46 +41,41 @@ export default function SettingsPage() {
         data: { password: deletePassword },
       });
 
+      // Clear all local storage data
+      localStorage.clear();
+      
+      // Clear any session storage data
+      sessionStorage.clear();
+
       toast.success("✅ Your account has been deleted successfully.");
 
       setShowDeleteModal(false);
-      localStorage.removeItem("token");
 
+      // Redirect to home page after a short delay
       setTimeout(() => {
         window.location.href = "/";
       }, 2000);
     } catch (err) {
       toast.error(err.response?.data?.error || "Account deletion failed");
+      setDeletePassword(""); // Clear password field on error
     }
   };
 
-  // Dark mode toggle logic
-  const handleToggleDarkMode = () => {
-    const html = document.documentElement;
-    const newDarkMode = !darkMode;
-    setDarkMode(newDarkMode);
-    if (newDarkMode) {
-      html.classList.add("dark");
-    } else {
-      html.classList.remove("dark");
-    }
-    localStorage.setItem("darkMode", newDarkMode);
-  };
+  useEffect(() => {
+    window.history.pushState(null, "", window.location.href);
+    window.onpopstate = function () {
+      window.history.go(1);
+    };
+    return () => {
+      window.onpopstate = null;
+    };
+  }, []);
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 p-4">
       <h1 className="text-3xl font-bold text-center mb-6">⚙️ Account Settings</h1>
 
-      {/* Dark Mode Toggle */}
-      <div className="flex justify-end mb-4">
-        <button
-          onClick={handleToggleDarkMode}
-          className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-100 border dark:border-gray-700 shadow hover:bg-gray-300 dark:hover:bg-gray-700 transition"
-          aria-label="Toggle dark mode"
-        >
-          {darkMode ? "🌙 Dark" : "☀️ Light"}
-        </button>
-      </div>
+      
 
       {/* Username Card */}
       <Card>

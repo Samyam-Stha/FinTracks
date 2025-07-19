@@ -16,11 +16,11 @@ import {
   CardContent,
   CardDescription,
 } from "@/components/ui/card";
-import AddTransactionModal from "@/Components/AddTransactionModal";
-import Overview from "@/Components/Overview";
-import { BudgetProgress } from "@/Components/BudgetProgress";
-import { RecentTransactions } from "@/Components/RecentTransactions";
-import ExpensePieChart from "@/Components/ExpensePieChart";
+import AddTransactionModal from "@/Components/Dashboard/AddTransactionModal";
+import Overview from "@/Components/Dashboard/Overview";
+import { BudgetProgress } from "@/Components/Dashboard/BudgetProgress";
+import { RecentTransactions } from "@/Components/Dashboard/RecentTransactions";
+import ExpensePieChart from "@/Components/Dashboard/ExpensePieChart";
 import { format } from "date-fns";
 
 const Dashboard = () => {
@@ -75,26 +75,34 @@ const Dashboard = () => {
     };
   }, [user?.id]);
 
-  const updateDashboardStats = (txs) => {
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
+  useEffect(() => {
+    window.history.pushState(null, "", window.location.href);
+    window.onpopstate = function () {
+      window.history.go(1);
+    };
+    return () => {
+      window.onpopstate = null;
+    };
+  }, []);
 
-    const monthlyIncome = txs
-      .filter(
-        (t) =>
-          t.type === "income" &&
-          new Date(t.date).getMonth() === currentMonth &&
-          new Date(t.date).getFullYear() === currentYear
-      )
+  const updateDashboardStats = (txs) => {
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+
+    // Filter transactions for current month
+    const currentMonthTransactions = txs.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getMonth() === currentMonth && 
+             transactionDate.getFullYear() === currentYear;
+    });
+
+    const monthlyIncome = currentMonthTransactions
+      .filter(t => t.type === "income")
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const monthlyExpense = txs
-      .filter(
-        (t) =>
-          t.type === "expense" &&
-          new Date(t.date).getMonth() === currentMonth &&
-          new Date(t.date).getFullYear() === currentYear
-      )
+    const monthlyExpense = currentMonthTransactions
+      .filter(t => t.type === "expense")
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const monthlyBalance = monthlyIncome - monthlyExpense;
@@ -229,7 +237,7 @@ const Dashboard = () => {
             <CardDescription>Where your money goes</CardDescription>
           </CardHeader>
           <CardContent>
-            <ExpensePieChart />
+            <ExpensePieChart isDark={document.documentElement.classList.contains("dark")} interval="monthly" />
           </CardContent>
         </Card>
       </div>
@@ -251,7 +259,7 @@ const Dashboard = () => {
           <CardDescription>Income vs Expense (Monthly)</CardDescription>
         </CardHeader>
         <CardContent>
-          <Overview />
+        <Overview isDark={document.documentElement.classList.contains("dark")} interval="monthly" chartType="Bar Chart" />
         </CardContent>
       </Card>
 

@@ -1,0 +1,127 @@
+@startuml
+
+skinparam linetype ortho
+skinparam pageSize A4
+skinparam orientation portrait
+hide stereotypes
+hide circle
+hide membersymbol
+
+left to right direction
+
+class User {
+  \+ id: Int
+  \+ name: String
+  \+ email: String
+  \+ password: String
+  \- register()
+  \- login()
+  \- updateUser()
+  \- deleteAccount()
+}
+
+class AuthController {
+  \- register()
+  \- login()
+  \- updateUser()
+  \- deleteAccount()
+}
+
+class Transaction {
+  \+ id: Int
+  \+ userId: Int
+  \+ date: Date
+  \+ description: String
+  \+ amount: Float
+  \+ type: String
+  \+ category: String
+  \+ account: String
+}
+
+class TransactionController {
+  \- addTransaction()
+  \- getRecentTransactions()
+  \- getFilteredTransactions()
+  \- updateTransaction()
+  \- deleteTransaction()
+}
+
+class Category {
+  \+ id: Int
+  \+ userId: Int
+  \+ name: String
+  \+ account: String
+}
+
+class CategoryController {
+  \- getCategories()
+  \- addCategory()
+}
+
+class Budget {
+  \+ id: Int
+  \+ userId: Int
+  \+ categoryId: Int
+  \+ budget: Float
+}
+
+class BudgetController {
+  \- getBudgets()
+  \- addBudget()
+  \- updateBudget()
+  \- deleteBudget()
+}
+
+class MonthlySavings {
+  \+ userId: Int
+  \+ month: Date
+  \+ amount: Float
+}
+
+class SavingsController {
+  \- storeMonthlySavings()
+  \- getMonthlySavings()
+}
+
+class Analytics {
+  \- getSpendingTrends()
+  \- getBudgetVsActual()
+  \- getSeasonalAnalysis()
+  \- getCategoryAlerts()
+  \- getFinancialHealthScore()
+}
+
+class AnalyticsController {
+  \- getSpendingTrends()
+  \- getBudgetVsActual()
+  \- getSeasonalAnalysis()
+  \- getCategoryAlerts()
+  \- getFinancialHealthScore()
+}
+
+class MonthlyBudgetHistory {
+  \+ userId: Int
+  \+ month: Date
+  \+ category: String
+  \+ budget: Float
+  \+ spent: Float
+  \+ remaining: Float
+}
+
+User "1" -- "*" Transaction
+User "1" -- "*" Category
+User "1" -- "*" Budget
+User "1" -- "*" MonthlySavings
+User "1" -- "*" MonthlyBudgetHistory
+
+Budget "1" -- "1" Category
+Transaction "*" -- "1" Category
+
+AuthController --> User
+TransactionController --> Transaction
+CategoryController --> Category
+BudgetController --> Budget
+SavingsController --> MonthlySavings
+AnalyticsController --> Analytics
+
+@enduml 

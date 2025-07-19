@@ -1,5 +1,6 @@
 const express = require("express");
-const router = express.Router();
+const router = express.Router(); // ✅ This is correct
+
 const authenticate = require("../middleware/authenticate");
 const {
   getSummaryByInterval,

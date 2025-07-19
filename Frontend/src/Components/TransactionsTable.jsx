@@ -72,6 +72,21 @@ export function TransactionsTable({ filters = {} }) {
     fetchTransactions();
   };
 
+  const handleDelete = async (tx) => {
+    if (!window.confirm("Are you sure you want to delete this transaction?")) return;
+    const token = localStorage.getItem("token");
+    try {
+      await api.delete(`/transactions/${tx.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTransactions((prev) => prev.filter((t) => t.id !== tx.id));
+      // Optionally, you can call fetchTransactions() instead for a full refresh
+    } catch (err) {
+      console.error("Delete error:", err.response?.data || err.message);
+      alert("Error deleting transaction");
+    }
+  };
+
   const totalPages = Math.ceil(transactions.length / pageSize);
   const paginated = transactions.slice((page - 1) * pageSize, page * pageSize);
 
@@ -146,7 +161,7 @@ export function TransactionsTable({ filters = {} }) {
                       <DropdownMenuItem onClick={() => handleEditClick(tx)}>
                         Edit
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-500">
+                      <DropdownMenuItem className="text-red-500" onClick={() => handleDelete(tx)}>
                         Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>

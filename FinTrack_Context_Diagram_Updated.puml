@@ -1,0 +1,28 @@
+@startuml FinTrack Context Diagram
+!theme plain
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam roundcorner 0
+skinparam linetype ortho
+
+title FinTrack Financial Management System - Context Diagram
+
+' External Actors
+actor "User" as USER
+
+' External Systems
+database "PostgreSQL Database" as DB
+
+' Main System
+rectangle "FinTrack System" as FINTrack {
+  component "React Frontend" as FRONTEND
+  component "Node.js Backend" as BACKEND
+}
+
+' Relationships with straight lines
+USER -down-> FRONTEND : "Uses"
+FRONTEND -right-> BACKEND : "API calls"
+BACKEND -down-> DB : "Stores data"
+
+@enduml 

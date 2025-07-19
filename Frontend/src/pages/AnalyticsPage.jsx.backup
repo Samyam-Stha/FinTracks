@@ -1,0 +1,1468 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  CheckCircle,
+  DollarSign,
+  BarChart3,
+  PieChart,
+  Activity,
+  Target,
+  Calendar,
+  AlertCircle,
+  Info,
+  LineChart,
+  BarChart,
+  AreaChart,
+  CalendarDays,
+  CalendarRange,
+  CalendarCheck,
+  Filter,
+} from 'lucide-react';
+import { formatNPR } from '@/utils/formatCurrency';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+  SheetClose,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  LineChart as RechartsLineChart,
+  Line,
+  BarChart as RechartsBarChart,
+  Bar,
+  AreaChart as RechartsAreaChart,
+  Area,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+import BudgetComparison from '@/Components/BudgetComparison';
+import BudgetCategoryComparison from '@/Components/BudgetCategoryComparison';
+import BudgetComparisonChart from '@/Components/BudgetComparisonChart';
+import IncomeExpenseSavingsChart from '@/Components/IncomeExpenseSavingsChart';
+
+const intervals = [
+  { value: "daily", label: "Daily", icon: CalendarDays },
+  { value: "weekly", label: "Weekly", icon: CalendarRange },
+  { value: "monthly", label: "Monthly", icon: Calendar },
+  { value: "yearly", label: "Yearly", icon: CalendarCheck }
+];
+
+const AnalyticsPage = ({ setCurrentPage }) => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [interval, setInterval] = useState('monthly');
+  const [loading, setLoading] = useState(false);
+  const [graphsLoading, setGraphsLoading] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    spendingTrends: true,
+    budgetComparison: false,
+    expenseBreakdown: false,
+    incomeExpense: true
+  });
+  const [budgetFilter, setBudgetFilter] = useState({
+    period: 'current', // current, past, all
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1
+  });
+  const [budgetFilters, setBudgetFilters] = useState({
+    period: 'current',
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+    startDate: '',
+    endDate: ''
+  });
+  const [trendsData, setTrendsData] = useState(null);
+  const [budgetData, setBudgetData] = useState(null);
+  const [seasonalData, setSeasonalData] = useState(null);
+  const [alertsData, setAlertsData] = useState(null);
+  const [savingsData, setSavingsData] = useState(null);
+  const [graphsData, setGraphsData] = useState(null);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [tempMonth, setTempMonth] = useState(budgetFilters.month);
+  const [tempYear, setTempYear] = useState(budgetFilters.year);
+
+  const token = localStorage.getItem("token");
+
+  useEffect(() => {
+    fetchData();
+  }, [activeTab, interval]);
+
+  // Watch for budget filter changes and fetch data if on budget tab
+  useEffect(() => {
+    if (activeTab === 'budget') {
+      fetchData();
+    }
+  }, [budgetFilters]);
+
+  useEffect(() => {
+    // Sync filter period with interval
+    let newPeriod = 'current';
+    if (interval === 'yearly' || interval === 'all') newPeriod = 'all';
+    else if (interval === 'monthly') newPeriod = 'current';
+    // You can add more mappings if needed
+    if (budgetFilters.period !== newPeriod) {
+      applyBudgetFilters({
+        ...budgetFilters,
+        period: newPeriod
+      });
+    }
+  }, [interval]);
+
+  const getTrendsPeriod = () => {
+    switch (interval) {
+      case 'daily': return '1week';
+      case 'weekly': return '1month';
+      case 'monthly': return '6months';
+      case 'yearly': return '12months';
+      default: return '6months';
+    }
+  };
+
+  const getIntervalLabel = () => {
+    switch (interval) {
+      case "daily":
+        return "Daily View";
+      case "weekly":
+        return "Weekly View";
+      case "monthly":
+        return "Monthly View";
+      case "yearly":
+        return "Yearly View";
+      default:
+        return "Monthly View";
+    }
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      switch (activeTab) {
+        case 'overview':
+          // Fetch data for overview - key metrics and main chart
+          const [overviewTrendsRes, overviewBudgetRes, overviewSummaryRes] = await Promise.all([
+            axios.get(`http://localhost:5000/api/analytics/trends?period=${getTrendsPeriod()}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            }),
+            axios.get(`http://localhost:5000/api/analytics/budget-vs-actual?${getBudgetFilterParams()}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            }),
+            axios.get(`http://localhost:5000/api/transactions/summary?interval=${interval}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+          ]);
+          setTrendsData(overviewTrendsRes.data);
+          setBudgetData(overviewBudgetRes.data);
+          setGraphsData({ summary: overviewSummaryRes.data });
+          break;
+        case 'trends':
+          await fetchGraphsData();
+          setLoading(false); // Don't set loading to false here as fetchGraphsData handles its own loading
+          return; // Return early to prevent setting loading to false twice
+        case 'budget':
+          const budgetRes = await axios.get(`http://localhost:5000/api/analytics/budget-vs-actual?${getBudgetFilterParamsNew()}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setBudgetData(budgetRes.data);
+          break;
+        case 'savings':
+          const [monthlySavingsRes, savingsGoalRes] = await Promise.all([
+            axios.get('http://localhost:5000/api/savings/monthly', {
+              headers: { Authorization: `Bearer ${token}` }
+            }),
+            axios.get('http://localhost:5000/api/savings/goal', {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+          ]);
+          
+          // Calculate total and average savings
+          const monthlySavings = monthlySavingsRes.data;
+          const totalSavings = monthlySavings.reduce((sum, item) => sum + item.savedAmount, 0);
+          const averageSavings = monthlySavings.length > 0 ? totalSavings / monthlySavings.length : 0;
+          
+          setSavingsData({
+            totalSavings,
+            averageSavings,
+            currentSavings: savingsGoalRes.data.currentSavings,
+            totalIncome: savingsGoalRes.data.totalIncome,
+            totalExpenses: savingsGoalRes.data.totalExpenses,
+            monthlySavings,
+            savingsGoal: savingsGoalRes.data
+          });
+          break;
+        case 'alerts':
+          const alertsRes = await axios.get('http://localhost:5000/api/analytics/alerts', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setAlertsData(alertsRes.data);
+          break;
+      }
+    } catch (error) {
+      console.error('Error fetching analytics data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchGraphsData = async () => {
+    setGraphsLoading(true);
+    try {
+      // Fetch multiple data sources for graphs based on interval
+      const [trendsRes, budgetRes, expensesRes, summaryRes] = await Promise.all([
+        axios.get(`http://localhost:5000/api/analytics/trends?period=${getTrendsPeriod()}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get('http://localhost:5000/api/analytics/budget-vs-actual', {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`http://localhost:5000/api/transactions/expenses/by-category?interval=${interval}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`http://localhost:5000/api/transactions/summary?interval=${interval}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
+
+      setGraphsData({
+        trends: trendsRes.data,
+        budget: budgetRes.data,
+        expenses: expensesRes.data,
+        summary: summaryRes.data
+      });
+    } catch (error) {
+      console.error('Error fetching graphs data:', error);
+    } finally {
+      setGraphsLoading(false);
+    }
+  };
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'trends', label: 'Trends & Charts', icon: TrendingUp },
+    { id: 'budget', label: 'Budget Analysis', icon: Target },
+    { id: 'savings', label: 'Saving Analysis', icon: DollarSign },
+    { id: 'alerts', label: 'Alerts', icon: AlertTriangle },
+  ];
+
+  // Chart colors
+  const CHART_COLORS = [
+    '#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#8dd1e1',
+    '#a4de6c', '#d0ed57', '#ffbb28', '#e57373', '#ba68c8',
+    '#4fc3f7', '#ffd54f', '#81c784', '#f06292', '#9575cd'
+  ];
+
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case 'high': return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-200 dark:border-yellow-800';
+      case 'low': return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-800';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700';
+    }
+  };
+
+  const toggleSection = (sectionName) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }));
+  };
+
+  const getBudgetFilterParams = () => {
+    const params = new URLSearchParams();
+    if (budgetFilter.period === 'past') {
+      params.append('period', 'past');
+      params.append('year', budgetFilter.year);
+      params.append('month', budgetFilter.month);
+    } else if (budgetFilter.period === 'all') {
+      params.append('period', 'all');
+    } else if (budgetFilter.period === 'custom') {
+      params.append('period', 'custom');
+      if (budgetFilter.startDate) params.append('startDate', budgetFilter.startDate);
+      if (budgetFilter.endDate) params.append('endDate', budgetFilter.endDate);
+    } else {
+      // Default to current
+      params.append('period', 'current');
+    }
+    return params.toString();
+  };
+
+  const applyBudgetFilters = (filters) => {
+    setBudgetFilters(filters);
+    setBudgetFilter({
+      period: filters.period,
+      year: filters.year,
+      month: filters.month,
+      startDate: filters.startDate,
+      endDate: filters.endDate
+    });
+    setBudgetData(null); // Clear old data before fetching new
+    // If we're currently on the budget tab, fetch data immediately
+    if (activeTab === 'budget') {
+      // Use setTimeout to ensure state updates before fetching
+      setTimeout(() => {
+        fetchData();
+      }, 0);
+    }
+  };
+
+  const getBudgetFilterParamsNew = () => {
+    const params = new URLSearchParams();
+    if (budgetFilters.period === 'past') {
+      params.append('period', 'past');
+      params.append('year', budgetFilters.year);
+      params.append('month', budgetFilters.month);
+    } else if (budgetFilters.period === 'all') {
+      params.append('period', 'all');
+    } else if (budgetFilters.period === 'custom') {
+      params.append('period', 'custom');
+      if (budgetFilters.startDate) params.append('startDate', budgetFilters.startDate);
+      if (budgetFilters.endDate) params.append('endDate', budgetFilters.endDate);
+    } else {
+      // Default to current
+      params.append('period', 'current');
+    }
+    return params.toString();
+  };
+
+  const getAvailableYears = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let year = currentYear; year >= currentYear - 5; year--) {
+      years.push(year);
+    }
+    return years;
+  };
+
+  const getMonthName = (monthNumber) => {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[monthNumber - 1];
+  };
+
+  const getGraphsTab = () => {
+    if (!graphsData) return null;
+
+    const { trends, budget, expenses, summary } = graphsData;
+
+    // Prepare data for spending trends line chart
+    const trendsChartData = trends?.trends?.map(trend => ({
+      month: new Date(trend.month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      spending: trend.total,
+      transactions: trend.count,
+      change: trend.change
+    })) || [];
+
+    // Prepare data for budget vs actual bar chart
+    const budgetChartData = budget?.comparison?.map(item => ({
+      category: item.category,
+      budget: item.budget,
+      actual: item.actual,
+      variance: item.variance
+    })) || [];
+
+    // Prepare data for expense category pie chart
+    const expenseChartData = expenses?.map((item, index) => ({
+      name: item.category,
+      value: Number(item.total),
+      color: CHART_COLORS[index % CHART_COLORS.length]
+    })) || [];
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            {/* <label className="text-sm font-medium text-muted-foreground">Time Period</label> */}
+            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              {intervals.map((int) => {
+                const Icon = int.icon;
+                return (
+                  <button
+                    key={int.value}
+                    onClick={() => setInterval(int.value)}
+                    disabled={graphsLoading}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                      interval === int.value
+                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    } ${graphsLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={int.label}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{int.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+       
+     
+      
+
+    {/* Loading Indicator */}
+    {loading && (
+      <div className="flex items-center justify-center py-8 transition-all duration-300 ease-in-out animate-in fade-in">
+        <div className="flex items-center gap-2">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 dark:border-white"></div>
+          <span className="text-sm text-muted-foreground">Loading analytics data...</span>
+        </div>
+      </div>
+    )}
+
+    {/* Summary Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 transition-all duration-500 ease-in-out relative" key={`summary-cards-${interval}`}>
+      {/* Loading Overlay for Summary Cards */}
+      {graphsLoading && (
+        <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+            <span className="text-sm text-gray-600 dark:text-gray-300">Updating summary...</span>
+          </div>
+        </div>
+      )}
+      
+      <Card className="transition-all duration-300 ease-in-out">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Income</CardTitle>
+          <TrendingUp className="h-4 w-4 text-green-600" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-green-600 transition-all duration-300 ease-in-out">
+            {formatNPR(summary?.totals?.income || 0)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {getIntervalLabel()}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="transition-all duration-300 ease-in-out">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Expense</CardTitle>
+          <TrendingDown className="h-4 w-4 text-red-600" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-red-600 transition-all duration-300 ease-in-out">
+            {formatNPR(summary?.totals?.expense || 0)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {getIntervalLabel()}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="transition-all duration-300 ease-in-out">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Net Balance</CardTitle>
+          <DollarSign className="h-4 w-4 text-blue-600" />
+        </CardHeader>
+        <CardContent>
+          <div className={`text-2xl font-bold transition-all duration-300 ease-in-out ${(summary?.totals?.income - summary?.totals?.expense) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatNPR((summary?.totals?.income || 0) - (summary?.totals?.expense || 0))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Income - Expense
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="transition-all duration-300 ease-in-out">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Savings Rate</CardTitle>
+          <Target className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold transition-all duration-300 ease-in-out">
+            {summary?.totals?.income > 0 
+              ? `${(((summary.totals.income - summary.totals.expense) / summary.totals.income) * 100).toFixed(1)}%`
+              : 'N/A'
+            }
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Current period
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+
+    {/* Essential Charts (Always Visible) */}
+    <div className="space-y-6 transition-all duration-500 ease-in-out opacity-100 relative" style={{ opacity: graphsLoading ? 0.7 : 1 }}>
+      {/* Loading Overlay */}
+      {graphsLoading && (
+        <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <span className="text-sm text-gray-600 dark:text-gray-300">Updating charts...</span>
+          </div>
+        </div>
+      )}
+      
+      {/* Income vs Expense Chart - Always Visible */}
+      <Card className="transition-all duration-300 ease-in-out" key={`income-expense-${interval}`}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart className="h-5 w-5" />
+            Income vs Expense - {getIntervalLabel()}
+            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">Essential</Badge>
+          </CardTitle>
+          <CardDescription>Your main financial overview - compare income and expenses over time</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80 transition-all duration-500 ease-in-out">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsBarChart data={summary?.data || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="label" 
+                  tick={{ fontSize: 12 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                />
+                <YAxis 
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => `Rs. ${(value / 1000).toFixed(0)}k`}
+                />
+                <Tooltip 
+                  formatter={(value, name) => [
+                    `Rs. ${value.toLocaleString()}`,
+                    name === 'income' ? 'Income' : 'Expense'
+                  ]}
+                  labelStyle={{ fontWeight: 'bold' }}
+                />
+                <Legend />
+                <Bar dataKey="income" fill="#22c55e" name="Income" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" fill="#ef4444" name="Expense" radius={[4, 4, 0, 0]} />
+              </RechartsBarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Income vs Expense vs Savings Chart - Always Visible */}
+      <div className="transition-all duration-500 ease-in-out">
+        <IncomeExpenseSavingsChart />
+      </div>
+
+      {/* Advanced Charts (Always Visible) */}
+      <div className="relative">
+        {/* Loading Overlay for Advanced Charts */}
+        {graphsLoading && (
+          <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="text-sm text-gray-600 dark:text-gray-300">Updating advanced charts...</span>
+            </div>
+          </div>
+        )}
+        
+        <>
+          {/* Spending Trends Line Chart */}
+          <Card className="transition-all duration-300 ease-in-out" key={`spending-trends-${interval}`}>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <LineChart className="h-5 w-5" />
+                  Spending Trends - {getIntervalLabel()}
+                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">Advanced</Badge>
+                </div>
+                <button
+                  onClick={() => toggleSection('spendingTrends')}
+                  className="text-sm text-muted-foreground hover:text-gray-900 dark:hover:text-white"
+                >
+                  {expandedSections.spendingTrends ? 'Collapse' : 'Expand'}
+                </button>
+              </CardTitle>
+              <CardDescription>Track your spending patterns and transaction counts over time</CardDescription>
+            </CardHeader>
+            {expandedSections.spendingTrends && (
+              <CardContent>
+                <div className="h-80 transition-all duration-500 ease-in-out">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsLineChart data={trendsChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="month" 
+                        tick={{ fontSize: 12 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={(value) => `Rs. ${(value / 1000).toFixed(0)}k`}
+                      />
+                      <Tooltip 
+                        formatter={(value, name) => [
+                          name === 'spending' ? `Rs. ${value.toLocaleString()}` : value,
+                          name === 'spending' ? 'Amount' : name === 'transactions' ? 'Transactions' : 'Change %'
+                        ]}
+                        labelStyle={{ fontWeight: 'bold' }}
+                      />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="spending" 
+                        stroke="#8884d8" 
+                        strokeWidth={3}
+                        dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="transactions" 
+                        stroke="#82ca9d" 
+                        strokeWidth={2}
+                        dot={{ fill: '#82ca9d', strokeWidth: 2, r: 3 }}
+                      />
+                    </RechartsLineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Expense Categories Pie Chart */}
+          <Card className="transition-all duration-300 ease-in-out" key={`expense-categories-${interval}`}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PieChart className="h-5 w-5" />
+                Expense Distribution by Category - {getIntervalLabel()}
+                <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 text-xs">Advanced</Badge>
+              </CardTitle>
+              <CardDescription>Breakdown of your expenses by category for the selected period</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80 transition-all duration-500 ease-in-out">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsPieChart>
+                    <Pie
+                      data={expenseChartData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={120}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      labelLine={true}
+                    >
+                      {expenseChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value) => `Rs. ${value.toLocaleString()}`}
+                      labelStyle={{ fontWeight: 'bold' }}
+                    />
+                    <Legend />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      </div>
+    </div>
+  </div>
+);
+
+const renderOverviewTab = () => {
+  const { summary } = graphsData || {};
+  
+  return (
+    <div className="space-y-6">
+      {/* Key Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Income</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {formatNPR(summary?.totals?.income || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {getIntervalLabel()}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Expense</CardTitle>
+            <TrendingDown className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {formatNPR(summary?.totals?.expense || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {getIntervalLabel()}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Net Balance</CardTitle>
+            <DollarSign className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${(summary?.totals?.income - summary?.totals?.expense) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatNPR((summary?.totals?.income || 0) - (summary?.totals?.expense || 0))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Income - Expense
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Savings Rate</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {summary?.totals?.income > 0 
+                ? `${(((summary.totals.income - summary.totals.expense) / summary.totals.income) * 100).toFixed(1)}%`
+                : 'N/A'
+              }
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Current period
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Income vs Expense Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart className="h-5 w-5" />
+            Income vs Expense Overview - {getIntervalLabel()}
+          </CardTitle>
+          <CardDescription>Your financial overview for the selected time period</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsBarChart data={summary?.data || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="label" 
+                  tick={{ fontSize: 12 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                />
+                <YAxis 
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => `Rs. ${(value / 1000).toFixed(0)}k`}
+                />
+                <Tooltip 
+                  formatter={(value, name) => [
+                    `Rs. ${value.toLocaleString()}`,
+                    name === 'income' ? 'Income' : 'Expense'
+                  ]}
+                  labelStyle={{ fontWeight: 'bold' }}
+                />
+                <Legend />
+                <Bar dataKey="income" fill="#22c55e" name="Income" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" fill="#ef4444" name="Expense" radius={[4, 4, 0, 0]} />
+              </RechartsBarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const renderTrendsTab = () => (
+  <div className="space-y-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Overall Trend</CardTitle>
+          {trendsData?.overallTrend > 0 ? (
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          ) : (
+            <TrendingDown className="h-4 w-4 text-red-600" />
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className={`text-2xl font-bold ${trendsData?.overallTrend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {trendsData?.overallTrend > 0 ? '+' : ''}{trendsData?.overallTrend?.toFixed(1)}%
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {trendsData?.period} period
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Months</CardTitle>
+          <BarChart3 className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{trendsData?.trends?.length || 0}</div>
+          <p className="text-xs text-muted-foreground">
+            Months analyzed
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Average Monthly Spending</CardTitle>
+          <DollarSign className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {formatNPR(trendsData?.trends?.reduce((sum, t) => sum + t.total, 0) / (trendsData?.trends?.length || 1))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Per month average
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Monthly Spending Trends</CardTitle>
+        <CardDescription>Track your spending patterns over time</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {trendsData?.trends?.map((trend, index) => (
+            <div key={index} className="flex items-center justify-between p-4 border rounded-lg dark:border-gray-700">
+              <div className="flex items-center space-x-4">
+                <div>
+                  <p className="font-medium">{trend.month}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {trend.count} transactions
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="font-medium">{formatNPR(trend.total)}</p>
+                <div className="flex items-center space-x-1">
+                  {trend.change > 0 ? (
+                    <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  )}
+                  <span className={`text-sm ${trend.change > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {Math.abs(trend.change).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+);
+
+const handleSelectMonth = () => {
+  setTempMonth(budgetFilters.month);
+  setTempYear(budgetFilters.year);
+  setMonthPickerOpen(true);
+};
+
+const handleMonthPickerApply = () => {
+  setBudgetFilters(prev => ({ ...prev, period: 'past', month: tempMonth, year: tempYear }));
+  setMonthPickerOpen(false);
+};
+
+const renderBudgetTab = () => {
+  // Check if there are actual budgets set for this period
+  // More comprehensive validation - check if there are actual budget entries
+  const hasBudgets = budgetData?.summary?.totalBudget > 0 || 
+                    (budgetData?.comparison && budgetData.comparison.some(item => item.budget > 0));
+  const hasComparisonData = budgetData?.comparison?.length > 0;
+  
+  // Additional check: if period is 'past' and the returned data does not match the selected year/month, show empty state
+  let isPastPeriodMismatch = false;
+  if (budgetFilters.period === 'past' && budgetData?.summary) {
+    // Assume backend returns summary.year and summary.month for past periods
+    if (
+      Number(budgetData.summary.year) !== Number(budgetFilters.year) ||
+      Number(budgetData.summary.month) !== Number(budgetFilters.month)
+    ) {
+      isPastPeriodMismatch = true;
+    }
+  }
+
+  // Final check: we have valid data AND there are actual budgets (not all zero) AND not a mismatch
+  const shouldShowBudgetData = hasBudgets && !isPastPeriodMismatch;
+
+  const getEmptyStateMessage = () => {
+    switch (budgetFilters.period) {
+      case 'current':
+        return {
+          title: "No Budgets Set for Current Period",
+          message: "You haven't set any budgets for the current month yet.",
+          action: "Set Up Budgets",
+          actionUrl: "/budget"
+        };
+    
+      case 'all':
+        return {
+          title: "No Budget History Available",
+          message: "No budget history data is available. This could be because budgets haven't been reset yet or no historical data exists.",
+          action: "View Current Budgets",
+          actionUrl: "/budget"
+        };
+      case 'custom':
+        if (!budgetFilters.startDate || !budgetFilters.endDate) {
+          return {
+            title: "Incomplete Date Range",
+            message: "Please select both start and end dates for custom range analysis.",
+            action: null,
+            actionUrl: null
+          };
+        }
+        return {
+          title: `No Budget Data for Selected Range`,
+          message: `No budget data available for the selected date range (${budgetFilters.startDate} to ${budgetFilters.endDate}).`,
+          action: "View Current Budgets",
+          actionUrl: "/budget"
+        };
+      default:
+        return {
+          title: "No Budget Data Available",
+          message: "No budget data is available for the selected period.",
+          action: "Set Up Budgets",
+          actionUrl: "/budget"
+        };
+    }
+  };
+
+  const emptyState = getEmptyStateMessage();
+
+  return (
+    <div className="space-y-6">
+      {/* Budget Comparison Component */}
+      <BudgetComparison
+        currentBudget={budgetData?.summary?.currentBudget || 0}
+        selectedBudget={budgetFilters.period === 'current' ? null : (budgetData?.summary?.totalBudget || 0)}
+        selectedLabel={budgetFilters.period === 'past' ? `${getMonthName(budgetFilters.month)} ${budgetFilters.year} Budget` : 'Selected Month Budget'}
+        onSelectMonth={handleSelectMonth}
+      />
+      <BudgetCategoryComparison
+        currentCategories={budgetFilters.period === 'past' ? (budgetData?.currentCategories || []) : []}
+        selectedCategories={budgetFilters.period === 'past' ? (budgetData?.selectedCategories || []) : []}
+        currentLabel="Current Month"
+        selectedLabel={budgetFilters.period === 'past' ? `${getMonthName(budgetFilters.month)} ${budgetFilters.year}` : 'Selected Month'}
+      />
+      <BudgetComparisonChart
+        currentCategories={budgetFilters.period === 'past' ? (budgetData?.currentCategories || []) : []}
+        selectedCategories={budgetFilters.period === 'past' ? (budgetData?.selectedCategories || []) : []}
+        currentLabel="Current Month"
+        selectedLabel={budgetFilters.period === 'past' ? `${getMonthName(budgetFilters.month)} ${budgetFilters.year}` : 'Selected Month'}
+      />
+      {/* Month Picker Dialog */}
+      <Sheet open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Select Month for Comparison</SheetTitle>
+          </SheetHeader>
+          <div className="flex gap-4 items-center my-4">
+            <Select value={tempYear.toString()} onValueChange={v => setTempYear(Number(v))}>
+              <SelectTrigger className="w-28"><SelectValue placeholder="Year" /></SelectTrigger>
+              <SelectContent>
+                {getAvailableYears().map(year => (
+                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={tempMonth.toString()} onValueChange={v => setTempMonth(Number(v))}>
+              <SelectTrigger className="w-32"><SelectValue placeholder="Month" /></SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                  <SelectItem key={month} value={month.toString()}>{getMonthName(month)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setMonthPickerOpen(false)}>Cancel</Button>
+            <Button onClick={handleMonthPickerApply}>Apply</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      {/* Show empty state if no budgets are set or no valid data */}
+      {null}
+    </div>
+  );
+};
+
+const renderSavingsTab = () => (
+  <div className="space-y-6">
+    {/* Summary Cards */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <Card>
+        <CardHeader className="flex justify-between items-center pb-2">
+          <CardTitle className="text-sm font-medium">Total Savings</CardTitle>
+          <DollarSign className="h-5 w-5 text-gray-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-green-600">
+            {formatNPR(savingsData?.totalSavings || 0)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Total savings across all months
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex justify-between items-center pb-2">
+          <CardTitle className="text-sm font-medium">Average Monthly Savings</CardTitle>
+          <TrendingUp className="h-5 w-5 text-gray-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-blue-600">
+            {formatNPR(savingsData?.averageSavings || 0)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Average savings per month
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex justify-between items-center pb-2">
+          <CardTitle className="text-sm font-medium">Current Savings</CardTitle>
+          <Calendar className="h-5 w-5 text-gray-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-purple-600">
+            {formatNPR(savingsData?.currentSavings || 0)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Income: {formatNPR(savingsData?.totalIncome || 0)} | Expenses: {formatNPR(savingsData?.totalExpenses || 0)}
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+);
+
+const renderAlertsTab = () => (
+  <div className="space-y-6">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Alerts</CardTitle>
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{alertsData?.summary?.totalAlerts || 0}</div>
+          <p className="text-xs text-muted-foreground">
+            Active alerts
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">High Priority</CardTitle>
+          <AlertCircle className="h-4 w-4 text-red-600" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-red-600">{alertsData?.summary?.highPriority || 0}</div>
+          <p className="text-xs text-muted-foreground">
+            Critical issues
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Medium Priority</CardTitle>
+          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-yellow-600">{alertsData?.summary?.mediumPriority || 0}</div>
+          <p className="text-xs text-muted-foreground">
+            Warning issues
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Low Priority</CardTitle>
+          <Info className="h-4 w-4 text-blue-600" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-blue-600">{alertsData?.summary?.lowPriority || 0}</div>
+          <p className="text-xs text-muted-foreground">
+            Info alerts
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Spending Alerts</CardTitle>
+        <CardDescription>Important notifications about your spending patterns</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {alertsData?.alerts?.length > 0 ? (
+            alertsData.alerts.map((alert, index) => (
+              <div key={index} className={`p-4 border rounded-lg ${getSeverityColor(alert.severity)}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <h3 className="font-medium">{alert.category}</h3>
+                      <Badge className={getSeverityColor(alert.severity)}>
+                        {alert.severity.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <p className="text-sm">{alert.message}</p>
+                    {alert.details && (
+                      <div className="mt-2 text-xs">
+                        {alert.details.budget && <p>Budget: {formatNPR(alert.details.budget)}</p>}
+                        {alert.details.spent && <p>Spent: {formatNPR(alert.details.spent)}</p>}
+                        {alert.details.overrun && <p>Overrun: {formatNPR(alert.details.overrun)}</p>}
+                        {alert.details.increase && <p>Increase: {alert.details.increase}%</p>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8">
+              <CheckCircle className="h-12 w-12 text-green-600 dark:text-green-400 mx-auto mb-4" />
+              <p className="text-lg font-medium text-green-600 dark:text-green-400">No Alerts</p>
+              <p className="text-muted-foreground">Your spending looks good!</p>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+);
+
+const renderContent = () => {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  switch (activeTab) {
+    case 'overview':
+      return renderOverviewTab();
+    case 'trends':
+      return getGraphsTab();
+    case 'budget':
+      return renderBudgetTab();
+    case 'savings':
+      return renderSavingsTab();
+    case 'alerts':
+      return renderAlertsTab();
+    default:
+      return null;
+  }
+};
+
+const BudgetFilter = ({ onFilterChange }) => {
+  const [localFilters, setLocalFilters] = useState(budgetFilters);
+  const [errors, setErrors] = useState({});
+
+  // Update local filters when parent budgetFilters changes
+  useEffect(() => {
+    setLocalFilters(budgetFilters);
+    setErrors({});
+  }, [budgetFilters]);
+
+  const validateFilters = () => {
+    const newErrors = {};
+    
+    if (localFilters.period === 'custom') {
+      if (!localFilters.startDate) {
+        newErrors.startDate = 'Start date is required';
+      }
+      if (!localFilters.endDate) {
+        newErrors.endDate = 'End date is required';
+      }
+      if (localFilters.startDate && localFilters.endDate) {
+        const start = new Date(localFilters.startDate);
+        const end = new Date(localFilters.endDate);
+        if (start > end) {
+          newErrors.dateRange = 'Start date must be before end date';
+        }
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const applyFilters = () => {
+    if (validateFilters()) {
+      onFilterChange(localFilters);
+    }
+  };
+
+  const resetFilters = () => {
+    const defaultFilters = {
+      period: 'current',
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
+      startDate: '',
+      endDate: ''
+    };
+    setLocalFilters(defaultFilters);
+    setErrors({});
+    onFilterChange(defaultFilters);
+  };
+
+  const getFilterStatus = () => {
+    switch (localFilters.period) {
+      case 'current':
+        return 'Current Period';
+      case 'past':
+        return `${getMonthName(localFilters.month)} ${localFilters.year}`;
+      case 'all':
+        return 'All Time';
+      case 'custom':
+        return `Custom Range${localFilters.startDate && localFilters.endDate ? ` (${localFilters.startDate} to ${localFilters.endDate})` : ''}`;
+      default:
+        return 'Current Period';
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 ">
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button variant="outline" className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 shadow-none hover:bg-gray-200 dark:hover:bg-gray-700">
+            <Filter className="h-4 w-4" />
+            Budget Filters 
+            <Badge variant="secondary" className="ml-1 text-xs">
+              {getFilterStatus()}
+            </Badge>
+          </Button>
+        </SheetTrigger>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Filter Budget Analysis</SheetTitle>
+            <SheetDescription>
+              Select the time period for your budget analysis
+            </SheetDescription>
+          </SheetHeader>
+          <div className="grid gap-4 py-4">
+            <div>
+              <Label>Time Period</Label>
+              <Select 
+                value={localFilters.period} 
+                onValueChange={(value) => {
+                  setLocalFilters(prev => ({ 
+                    ...prev, 
+                    period: value,
+                    // Reset date fields when changing period
+                    startDate: value !== 'custom' ? '' : prev.startDate,
+                    endDate: value !== 'custom' ? '' : prev.endDate
+                  }));
+                  setErrors({});
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current">Current Period</SelectItem>
+                  <SelectItem value="past">Past Period</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {localFilters.period === 'past' && (
+              <>
+                <div>
+                  <Label>Year</Label>
+                  <Select 
+                    value={localFilters.year.toString()} 
+                    onValueChange={(value) => setLocalFilters(prev => ({ ...prev, year: parseInt(value) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableYears().map(year => (
+                        <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Month</Label>
+                  <Select 
+                    value={localFilters.month.toString()} 
+                    onValueChange={(value) => setLocalFilters(prev => ({ ...prev, month: parseInt(value) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                        <SelectItem key={month} value={month.toString()}>{getMonthName(month)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {localFilters.period === 'custom' && (
+              <>
+                <div>
+                  <Label>Start Date</Label>
+                  <Input
+                    type="date"
+                    value={localFilters.startDate}
+                    onChange={(e) => setLocalFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                    className={errors.startDate ? 'border-red-500' : ''}
+                  />
+                  {errors.startDate && (
+                    <p className="text-sm text-red-500 mt-1">{errors.startDate}</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label>End Date</Label>
+                  <Input
+                    type="date"
+                    value={localFilters.endDate}
+                    onChange={(e) => setLocalFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                    className={errors.endDate ? 'border-red-500' : ''}
+                  />
+                  {errors.endDate && (
+                    <p className="text-sm text-red-500 mt-1">{errors.endDate}</p>
+                  )}
+                </div>
+
+                {errors.dateRange && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md">
+                    <p className="text-sm text-red-600 dark:text-red-400">{errors.dateRange}</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Info section */}
+            <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>Current Period:</strong> Uses your active budgets for the current month<br/>
+                <strong>Past Period:</strong> Uses saved budget history from previous months<br/>
+                <strong>All Time:</strong> Aggregates all budget history data<br/>
+                <strong>Custom Range:</strong> Select specific dates for analysis
+              </p>
+            </div>
+          </div>
+          <SheetFooter className="flex gap-2">
+            <SheetClose asChild>
+              <Button variant="outline" onClick={resetFilters}>
+                Reset
+              </Button>
+            </SheetClose>
+            <SheetClose asChild>
+              <Button onClick={applyFilters} disabled={Object.keys(errors).length > 0}>
+                Apply Filters
+              </Button>
+            </SheetClose>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+};
+
+return (
+  <div className="space-y-6">
+    <div className="flex justify-between items-center">
+      <h1 className="text-3xl font-bold tracking-tight">Advanced Analytics</h1>
+    </div>
+
+    {/* Tab Navigation */}
+    <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        return (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === tab.id
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+
+    {/* Content */}
+    {renderContent()}
+  </div>
+);
+};
+
+export default AnalyticsPage;
